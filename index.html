@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>SIAP APEL — Sistem Informasi Apel Pejabat | Setda Provinsi Sulawesi Tenggara</title>
+<meta name="description" content="Sistem pencatatan dan rekapitulasi kehadiran Apel Pagi dan Apel Sore untuk Pejabat Administrator dan Fungsional Ahli Madya, Sekretariat Daerah Provinsi Sulawesi Tenggara.">
+<link rel="icon" href="assets/logo.png">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="app">
+
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-scroll">
+      <div class="brand">
+        <img class="brand-logo" src="assets/logo.png" alt="Logo Provinsi Sulawesi Tenggara">
+        <div class="brand-text">
+          <b class="brand-title">SIAP APEL</b>
+          <span class="brand-sub">Sistem Informasi Apel Pejabat</span>
+          <span class="brand-org">Sekretariat Daerah<br>Provinsi Sulawesi Tenggara</span>
+        </div>
+      </div>
+      <nav>
+        <button class="nav-item active" data-page="dashboard"><span class="ic">🏠</span>Dashboard</button>
+        <button class="nav-item" data-page="pegawai"><span class="ic">👥</span>Data Pegawai</button>
+        <button class="nav-item" data-page="input"><span class="ic">📝</span>Input Kehadiran</button>
+        <button class="nav-item" data-page="rekap"><span class="ic">📊</span>Rekap Kehadiran</button>
+        <button class="nav-item" data-page="individu"><span class="ic">🧑</span>Rekap Individu</button>
+        <button class="nav-item" data-page="pengaturan"><span class="ic">⚙️</span>Pengaturan</button>
+      </nav>
+      <div class="sidebar-foot">
+        <span id="connDotLabel"><span class="live-dot off" id="liveDot"></span><span id="connText">Memeriksa koneksi...</span></span>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main-col">
+    <div class="topbar">
+      <div class="topbar-left">
+        <button class="hamburger" id="btnHamburger" aria-label="Buka menu">☰</button>
+        <h1 id="pageTitle">Dashboard</h1>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="today" id="todayLabel"></div>
+        <div class="conn-badge off" id="connBadge"><span class="dot"></span><span id="connBadgeText">Offline</span></div>
+      </div>
+    </div>
+
+    <main class="content">
+
+      <div id="configBanner" class="config-banner" style="display:none;">
+        ⚠️ <b>Supabase belum dikonfigurasi.</b> Buka <code>js/config.js</code> dan isi <code>SUPABASE_URL</code> serta <code>SUPABASE_ANON_KEY</code> dari project Supabase Anda, lalu jalankan skrip <code>supabase/schema.sql</code> di SQL Editor Supabase. Lihat <code>README.md</code> untuk panduan lengkap.
+      </div>
+
+      <!-- DASHBOARD -->
+      <section id="page-dashboard" class="page active">
+        <div class="hero-grid">
+          <div class="hero-card">
+            <div class="label">Total Pegawai Aktif</div>
+            <div class="num" id="totalAktif">0</div>
+            <div class="sub">Administrator + Fungsional Ahli Madya</div>
+          </div>
+          <div class="card" style="margin-bottom:0;display:flex;flex-direction:column;justify-content:center;">
+            <h2>Ringkasan Hari Ini <span class="muted-sm" id="dashDateLabel"></span></h2>
+            <div class="donut-row">
+              <div class="donut-wrap">
+                <svg viewBox="0 0 36 36" id="donutPagi"></svg>
+                <div class="donut-center"><b id="donutPagiPct">0%</b><span>Hadir Pagi</span></div>
+              </div>
+              <div class="donut-legend" id="legendPagi"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Apel Pagi — Hari Ini</h2>
+          <div class="grid-cards" id="dashPagi"></div>
+        </div>
+        <div class="card">
+          <h2>Apel Sore — Hari Ini</h2>
+          <div class="grid-cards" id="dashSore"></div>
+        </div>
+      </section>
+
+      <!-- DATA PEGAWAI -->
+      <section id="page-pegawai" class="page">
+        <div class="card">
+          <div class="toolbar">
+            <div class="field"><label>Cari</label><input type="text" id="searchPegawai" placeholder="Nama / NIP..."></div>
+            <div class="field"><label>Biro</label><select id="filterBiro"><option value="">Semua Biro</option></select></div>
+            <div class="field"><label>Jenis Jabatan</label><select id="filterJenisJabatan"><option value="">Semua Jenis Jabatan</option><option value="Administrator">Administrator</option><option value="Fungsional Ahli Madya">Fungsional Ahli Madya</option></select></div>
+            <div class="field"><label>&nbsp;</label><button class="btn gold" id="btnTambahPegawai">+ Tambah Pegawai</button></div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>No</th><th>Nama</th><th>NIP</th><th>Jabatan</th><th>Jenis Jabatan</th><th>Status</th><th>Aksi</th></tr></thead>
+              <tbody id="tabelPegawai"><tr><td colspan="7"><div class="loading-row"><span class="spinner dark"></span>Memuat data pegawai...</div></td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- INPUT KEHADIRAN -->
+      <section id="page-input" class="page">
+        <div class="card">
+          <div class="toolbar">
+            <div class="field"><label>Tanggal</label><input type="date" id="inputTanggal"></div>
+            <div class="field"><label>Jenis Apel</label><select id="inputJenisApel"><option value="Apel Pagi">Apel Pagi</option><option value="Apel Sore">Apel Sore</option></select></div>
+            <div class="field"><label>&nbsp;</label><button class="btn gold" id="btnHadirSemua">✓ Hadir Semua</button></div>
+            <div class="field"><label>&nbsp;</label><button class="btn outline" id="btnResetInput">Reset</button></div>
+          </div>
+          <div id="inputExistingNotice" class="hint" style="display:none;">Data untuk tanggal &amp; jenis apel ini sudah tersimpan sebelumnya — mengubah dan menyimpan akan memperbarui data tersebut.</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>No</th><th>Nama</th><th>Jabatan</th><th>Status Kehadiran</th><th>Keterangan</th></tr></thead>
+              <tbody id="tabelInput"><tr><td colspan="5"><div class="loading-row"><span class="spinner dark"></span>Memuat data...</div></td></tr></tbody>
+            </table>
+          </div>
+          <div class="toolbar" style="margin-top:14px;"><button class="btn" id="btnSimpanKehadiran">💾 Simpan Kehadiran</button></div>
+        </div>
+      </section>
+
+      <!-- REKAP -->
+      <section id="page-rekap" class="page">
+        <div class="card">
+          <div class="toolbar">
+            <div class="field"><label>Mode</label><select id="rekapMode"><option value="harian">Harian</option><option value="range">Rentang Tanggal / Mingguan</option></select></div>
+            <div class="field" id="rekapTglSatuWrap"><label>Tanggal</label><input type="date" id="rekapTglSatu"></div>
+            <div class="field" id="rekapDariWrap" style="display:none;"><label>Dari Tanggal</label><input type="date" id="rekapDari"></div>
+            <div class="field" id="rekapSampaiWrap" style="display:none;"><label>Sampai Tanggal</label><input type="date" id="rekapSampai"></div>
+            <div class="field"><label>Jenis Apel</label><select id="rekapJenisApel"><option value="">Semua</option><option value="Apel Pagi">Apel Pagi</option><option value="Apel Sore">Apel Sore</option></select></div>
+            <div class="field"><label>Jenis Jabatan</label><select id="rekapJenisJabatan"><option value="">Semua</option><option value="Administrator">Administrator</option><option value="Fungsional Ahli Madya">Fungsional Ahli Madya</option></select></div>
+            <div class="field"><label>Biro</label><select id="rekapBiro"><option value="">Semua Biro</option></select></div>
+            <div class="field"><label>&nbsp;</label><button class="btn gold" id="btnTampilkanRekap">Tampilkan</button></div>
+            <div class="field"><label>&nbsp;</label><button class="btn outline" id="btnCetakRekap">🖨️ Cetak / PDF</button></div>
+          </div>
+          <div id="rekapHasil"></div>
+        </div>
+      </section>
+
+      <!-- REKAP INDIVIDU -->
+      <section id="page-individu" class="page">
+        <div class="card">
+          <div class="toolbar">
+            <div class="field"><label>Pegawai</label><select id="individuPegawai"></select></div>
+            <div class="field"><label>Dari Tanggal</label><input type="date" id="individuDari"></div>
+            <div class="field"><label>Sampai Tanggal</label><input type="date" id="individuSampai"></div>
+            <div class="field"><label>&nbsp;</label><button class="btn gold" id="btnTampilkanIndividu">Tampilkan</button></div>
+            <div class="field"><label>&nbsp;</label><button class="btn outline" id="btnCetakIndividu">🖨️ Cetak / PDF</button></div>
+          </div>
+          <div id="individuHasil"></div>
+        </div>
+      </section>
+
+      <!-- PENGATURAN -->
+      <section id="page-pengaturan" class="page">
+        <div class="card">
+          <h2>Status Koneksi Database</h2>
+          <p class="hint" id="pengaturanConnInfo">Memeriksa koneksi ke Supabase...</p>
+        </div>
+        <div class="card">
+          <h2>Backup &amp; Restore Data</h2>
+          <p class="hint">Data utama tersimpan di database Supabase secara langsung. Gunakan Backup untuk mengunduh salinan JSON secara berkala sebagai arsip / cadangan tambahan.</p>
+          <div class="toolbar">
+            <button class="btn gold" id="btnBackup">⬇️ Backup Data (JSON)</button>
+            <button class="btn outline" id="btnImportTrigger">⬆️ Import Data (JSON)</button>
+            <input type="file" id="fileImport" accept="application/json" style="display:none;">
+          </div>
+        </div>
+        <div class="card">
+          <h2>Tentang Aplikasi</h2>
+          <p class="hint">Aplikasi bantu pencatatan dan rekapitulasi kehadiran Apel Pagi dan Apel Sore untuk Pejabat Administrator dan Pejabat Fungsional Ahli Madya di lingkungan Sekretariat Daerah Provinsi Sulawesi Tenggara. Aplikasi ini bukan sistem absensi kepegawaian resmi. Data disimpan pada database Supabase yang terhubung ke aplikasi ini.</p>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- MODAL PEGAWAI -->
+<div class="modal-overlay hidden" id="modalPegawai">
+  <div class="modal">
+    <h3 id="modalPegawaiTitle">Tambah Pegawai</h3>
+    <input type="hidden" id="pegawaiId">
+    <div class="form-row"><label>Nama</label><input type="text" id="pegawaiNama"></div>
+    <div class="form-row"><label>NIP</label><input type="text" id="pegawaiNip"></div>
+    <div class="form-row"><label>Biro</label><select id="pegawaiBiro"></select></div>
+    <div class="form-row"><label>Jabatan</label><input type="text" id="pegawaiJabatan" placeholder="contoh: Kepala Biro Umum"></div>
+    <div class="form-row"><label>Jenis Jabatan</label><select id="pegawaiJenisJabatan"><option value="Administrator">Administrator</option><option value="Fungsional Ahli Madya">Fungsional Ahli Madya</option></select></div>
+    <div class="form-row"><label>Status</label><select id="pegawaiAktif"><option value="1">Aktif</option><option value="0">Tidak Aktif</option></select></div>
+    <div class="modal-actions">
+      <button class="btn outline" id="btnBatalPegawai">Batal</button>
+      <button class="btn gold" id="btnSimpanPegawai">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast hidden" id="toast"></div>
+<div id="printArea"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/supabase/2.45.4/umd/supabase.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/db.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
