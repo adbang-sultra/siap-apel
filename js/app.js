@@ -498,19 +498,34 @@ document.getElementById('btnTampilkanIndividu').addEventListener('click', async 
 
 // ---------------- CETAK / PDF ----------------
 function letterhead(title, sub) {
-  return `<div class="print-header">
-    <img src="${LOGO_SULTRA}" alt="Logo Sulawesi Tenggara" style="width:70px;height:auto;margin-bottom:6px;">
-    <h3>PEMERINTAH PROVINSI SULAWESI TENGGARA</h3><h4>SEKRETARIAT DAERAH</h4>
-    <p style="margin:10px 0 0;font-weight:bold;">${title}</p>
-    <p style="margin:2px 0;">${sub}</p>
-    <p style="margin:2px 0;font-size:11px;color:#333;">Dicetak melalui SIAP APEL — Sistem Informasi Apel Pejabat</p></div>`;
+  return `<div class="print-kop">
+    <img src="${LOGO_SULTRA}" alt="Logo Sulawesi Tenggara">
+    <div class="kop-text">
+      <h3>PEMERINTAH PROVINSI SULAWESI TENGGARA</h3>
+      <h4>SEKRETARIAT DAERAH</h4>
+      <div class="kop-addr">Jl. Ahmad Yani No. 1, Kendari, Sulawesi Tenggara</div>
+    </div>
+  </div>
+  <div class="print-doctitle">
+    <div class="t1">${title}</div>
+    <div class="t2">${sub}</div>
+  </div>`;
 }
 function signBlock() {
-  return `<div class="print-sign"><p>Mengetahui,<br>Sekretaris Daerah<br>Provinsi Sulawesi Tenggara</p><br><br><br><p>(..............................................)</p></div>
-  <p style="font-size:11px;margin-top:20px;">Tanggal cetak: ${new Date().toLocaleDateString('id-ID')} — Jam cetak: ${new Date().toLocaleTimeString('id-ID')}</p>`;
+  return `<div class="print-sign">
+      <p>Mengetahui,<br>Sekretaris Daerah<br>Provinsi Sulawesi Tenggara</p>
+      <div class="sign-space"></div>
+      <p>(..............................................)</p>
+    </div>
+    <div class="print-footnote">
+      <span>Dicetak melalui SIAP APEL — Sistem Informasi Apel Pejabat</span>
+      <span>Tanggal cetak: ${new Date().toLocaleDateString('id-ID')} — ${new Date().toLocaleTimeString('id-ID')}</span>
+    </div>`;
 }
-function doPrint(html) {
-  document.getElementById('printArea').innerHTML = html;
+function doPrint(html, landscape) {
+  const area = document.getElementById('printArea');
+  area.innerHTML = html;
+  area.classList.toggle('landscape', !!landscape);
   window.print();
 }
 document.getElementById('btnCetakRekap').addEventListener('click', () => {
@@ -520,12 +535,16 @@ document.getElementById('btnCetakRekap').addEventListener('click', () => {
   }
   const sub = lastRekap.mode === 'harian' ? `Hari/Tanggal: ${fmtTgl(lastRekap.dari)}` : `Periode: ${lastRekap.dari} s.d. ${lastRekap.sampai}`;
   const title = `REKAPITULASI KEHADIRAN APEL${lastRekap.jenisApel ? ' — ' + lastRekap.jenisApel : ''}`;
+  const meta = `<div class="print-meta"><b>Jenis Jabatan:</b> ${esc(lastRekap.jenisJabatan) || 'Semua'} &nbsp;&nbsp; <b>Biro:</b> ${esc(lastRekap.biro) || 'Semua'}</div>`;
   let table;
   if (lastRekap.mode === 'harian') {
     const rows = lastRekap.rows.slice().sort((a, b) => biroIndex(a.pegawai.biro) - biroIndex(b.pegawai.biro) || a.pegawai.nama.localeCompare(b.pegawai.nama));
-    table = `<table class="print-table"><thead><tr><th>No</th><th>Biro</th><th>Nama</th><th>Jabatan</th><th>Apel</th><th>Status</th><th>Keterangan</th></tr></thead><tbody>
-    ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.pegawai.biro)}</td><td>${esc(r.pegawai.nama)}</td><td>${esc(r.pegawai.jabatan)}</td><td>${esc(r.jenisApel)}</td><td>${STATUS_LABEL[r.status]}</td><td>${esc(r.keterangan) || '-'}</td></tr>`).join('')}
-    </tbody></table>`;
+    table = `<div class="print-table-wrap"><table class="print-table">
+      <colgroup><col style="width:5%"><col style="width:16%"><col style="width:20%"><col style="width:19%"><col style="width:11%"><col style="width:12%"><col style="width:17%"></colgroup>
+      <thead><tr><th class="num">No</th><th>Biro</th><th>Nama</th><th>Jabatan</th><th class="status">Apel</th><th class="status">Status</th><th>Keterangan</th></tr></thead>
+      <tbody>
+      ${rows.map((r, i) => `<tr><td class="num">${i + 1}</td><td>${esc(r.pegawai.biro)}</td><td>${esc(r.pegawai.nama)}</td><td>${esc(r.pegawai.jabatan)}</td><td class="status">${esc(r.jenisApel)}</td><td class="status">${STATUS_LABEL[r.status]}</td><td>${esc(r.keterangan) || '-'}</td></tr>`).join('')}
+      </tbody></table></div>`;
   } else {
     const byPeg = {};
     lastRekap.rows.forEach((r) => {
@@ -533,15 +552,24 @@ document.getElementById('btnCetakRekap').addEventListener('click', () => {
       byPeg[r.pegawaiId][r.status]++;
     });
     const arr = Object.values(byPeg).sort((a, b) => biroIndex(a.pegawai.biro) - biroIndex(b.pegawai.biro) || a.pegawai.nama.localeCompare(b.pegawai.nama));
-    table = `<table class="print-table"><thead><tr><th>No</th><th>Biro</th><th>Nama</th><th>Jabatan</th><th>Hadir</th><th>Sakit</th><th>Izin</th><th>Tugas Luar</th><th>TK</th></tr></thead><tbody>
-    ${arr.map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.pegawai.biro)}</td><td>${esc(r.pegawai.nama)}</td><td>${esc(r.pegawai.jabatan)}</td><td>${r.HADIR}</td><td>${r.SAKIT}</td><td>${r.IZIN}</td><td>${r.TUGAS_LUAR}</td><td>${r.TK}</td></tr>`).join('')}
-    </tbody></table>`;
+    table = `<div class="print-table-wrap"><table class="print-table">
+      <colgroup><col style="width:4%"><col style="width:15%"><col style="width:19%"><col style="width:20%"><col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:9%"><col style="width:5%"><col style="width:9%"></colgroup>
+      <thead><tr><th class="num">No</th><th>Biro</th><th>Nama</th><th>Jabatan</th><th class="num">Hadir</th><th class="num">Sakit</th><th class="num">Izin</th><th class="num">Tugas Luar</th><th class="num">TK</th><th class="num">% Hadir</th></tr></thead>
+      <tbody>
+      ${arr.map((r, i) => { const tot = r.HADIR + r.SAKIT + r.IZIN + r.TUGAS_LUAR + r.TK; const pct = tot ? Math.round((r.HADIR / tot) * 100) : 0; return `<tr><td class="num">${i + 1}</td><td>${esc(r.pegawai.biro)}</td><td>${esc(r.pegawai.nama)}</td><td>${esc(r.pegawai.jabatan)}</td><td class="num">${r.HADIR}</td><td class="num">${r.SAKIT}</td><td class="num">${r.IZIN}</td><td class="num">${r.TUGAS_LUAR}</td><td class="num">${r.TK}</td><td class="num">${pct}%</td></tr>`; }).join('')}
+      </tbody></table></div>`;
   }
   const c = { HADIR: 0, SAKIT: 0, IZIN: 0, TUGAS_LUAR: 0, TK: 0 };
   lastRekap.rows.forEach((r) => c[r.status]++);
-  const summary = `<div class="print-summary"><p>Jumlah Pegawai : ${new Set(lastRekap.rows.map((r) => r.pegawaiId)).size}</p>
-    <p>Jumlah Kehadiran : ${c.HADIR}</p><p>Sakit : ${c.SAKIT}</p><p>Izin : ${c.IZIN}</p><p>Tugas Luar : ${c.TUGAS_LUAR}</p><p>Tanpa Keterangan : ${c.TK}</p></div>`;
-  doPrint(letterhead(title, sub) + table + summary + signBlock());
+  const summary = `<div class="print-summary">
+    <div class="item">Jumlah Pegawai<b>${new Set(lastRekap.rows.map((r) => r.pegawaiId)).size}</b></div>
+    <div class="item">Hadir<b>${c.HADIR}</b></div>
+    <div class="item">Sakit<b>${c.SAKIT}</b></div>
+    <div class="item">Izin<b>${c.IZIN}</b></div>
+    <div class="item">Tugas Luar<b>${c.TUGAS_LUAR}</b></div>
+    <div class="item">Tanpa Keterangan<b>${c.TK}</b></div>
+  </div>`;
+  doPrint(letterhead(title, sub) + meta + table + summary + signBlock(), true);
 });
 document.getElementById('btnCetakIndividu').addEventListener('click', () => {
   if (!lastIndividu) {
@@ -549,10 +577,14 @@ document.getElementById('btnCetakIndividu').addEventListener('click', () => {
     return;
   }
   const { p, dari, sampai, rows } = lastIndividu;
-  const table = `<table class="print-table"><thead><tr><th>No</th><th>Tanggal</th><th>Jenis Apel</th><th>Status</th><th>Keterangan</th></tr></thead><tbody>
-  ${rows.map((r, i) => `<tr><td>${i + 1}</td><td>${r.tanggal}</td><td>${esc(r.jenisApel)}</td><td>${STATUS_LABEL[r.status]}</td><td>${esc(r.keterangan) || '-'}</td></tr>`).join('')}
-  </tbody></table>`;
-  doPrint(letterhead('REKAPITULASI KEHADIRAN APEL INDIVIDU', `Nama: ${esc(p.nama)} — ${esc(p.jabatan)}<br>Biro: ${esc(p.biro)}<br>Periode: ${dari} s.d. ${sampai}`) + table + signBlock());
+  const meta = `<div class="print-meta"><b>Nama:</b> ${esc(p.nama)} — ${esc(p.jabatan)}<br><b>Biro:</b> ${esc(p.biro)} &nbsp;&nbsp; <b>Periode:</b> ${dari} s.d. ${sampai}</div>`;
+  const table = `<div class="print-table-wrap"><table class="print-table">
+    <colgroup><col style="width:6%"><col style="width:18%"><col style="width:18%"><col style="width:16%"><col style="width:42%"></colgroup>
+    <thead><tr><th class="num">No</th><th>Tanggal</th><th class="status">Jenis Apel</th><th class="status">Status</th><th>Keterangan</th></tr></thead>
+    <tbody>
+    ${rows.map((r, i) => `<tr><td class="num">${i + 1}</td><td>${fmtTgl(r.tanggal)}</td><td class="status">${esc(r.jenisApel)}</td><td class="status">${STATUS_LABEL[r.status]}</td><td>${esc(r.keterangan) || '-'}</td></tr>`).join('')}
+    </tbody></table></div>`;
+  doPrint(letterhead('REKAPITULASI KEHADIRAN APEL INDIVIDU', `Sekretariat Daerah Provinsi Sulawesi Tenggara`) + meta + table + signBlock(), false);
 });
 
 // ---------------- BACKUP / RESTORE ----------------
