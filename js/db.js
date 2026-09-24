@@ -2,6 +2,9 @@
 // SIAP APEL — Lapisan Akses Data (Supabase)
 // =====================================================================
 
+// NOTE: kita sengaja TIDAK menamai variabel lokal "supabase", karena nama itu
+// dipakai oleh library UMD Supabase sendiri (window.supabase). Memakai nama
+// yang sama bisa membuat pemanggilan berikutnya salah sasaran / rawan bug.
 const CFG = window.SIAP_APEL_CONFIG || {};
 const NOT_CONFIGURED =
   !CFG.SUPABASE_URL ||
@@ -9,9 +12,19 @@ const NOT_CONFIGURED =
   CFG.SUPABASE_URL.includes('YOUR-PROJECT-REF') ||
   CFG.SUPABASE_ANON_KEY.includes('YOUR-ANON');
 
-let supabase = null;
-if (!NOT_CONFIGURED) {
-  supabase = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+let sbClient = null;
+let SDK_ERROR = null;
+
+try {
+  if (!NOT_CONFIGURED) {
+    if (!window.supabase || typeof window.supabase.createClient !== 'function') {
+      throw new Error('Library Supabase (CDN) gagal dimuat. Periksa koneksi internet / apakah script CDN diblokir.');
+    }
+    sbClient = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+  }
+} catch (err) {
+  console.error('Gagal membuat Supabase client:', err);
+  SDK_ERROR = err;
 }
 
 const STATUS_LIST = ['HADIR', 'SAKIT', 'IZIN', 'TUGAS_LUAR', 'TK'];
@@ -20,28 +33,36 @@ const STATUS_LABEL = { HADIR: 'Hadir', SAKIT: 'Sakit', IZIN: 'Izin', TUGAS_LUAR:
 function throwIfError(error) {
   if (error) throw new Error(error.message || 'Terjadi kesalahan pada database.');
 }
+function client() {
+  if (SDK_ERROR) throw SDK_ERROR;
+  if (!sbClient) throw new Error('Supabase belum dikonfigurasi. Lengkapi js/config.js.');
+  return sbClient;
+}
 
 const DB = {
   isConfigured() {
-    return !NOT_CONFIGURED;
+    return !NOT_CONFIGURED && !SDK_ERROR;
+  },
+  configError() {
+    return SDK_ERROR ? SDK_ERROR.message : null;
   },
 
   // ---------------- BIRO ----------------
   async listBiro() {
-    const { data, error } = await supabase.from('biro').select('*').order('urutan', { ascending: true });
+    const { data, error } = await client().from('biro').select('*').order('urutan', { ascending: true });
     throwIfError(error);
     return data.map((b) => b.nama);
   },
 
   // ---------------- PEGAWAI ----------------
   async listPegawai() {
-    const { data, error } = await supabase.from('pegawai').select('*').order('nama', { ascending: true });
+    const { data, error } = await client().from('pegawai').select('*').order('nama', { ascending: true });
     throwIfError(error);
     return data.map(rowToPegawai);
   },
 
   async insertPegawai(p) {
-    const { data, error } = await supabase
+    const { data, error } = await client()
       .from('pegawai')
       .insert({
         nama: p.nama,
@@ -58,7 +79,7 @@ const DB = {
   },
 
   async updatePegawai(id, p) {
-    const { data, error } = await supabase
+    const { data, error } = await client()
       .from('pegawai')
       .update({
         nama: p.nama,
@@ -76,18 +97,18 @@ const DB = {
   },
 
   async setAktifPegawai(id, aktif) {
-    const { error } = await supabase.from('pegawai').update({ aktif }).eq('id', id);
+    const { error } = await client().from('pegawai').update({ aktif }).eq('id', id);
     throwIfError(error);
   },
 
   async deletePegawai(id) {
-    const { error } = await supabase.from('pegawai').delete().eq('id', id);
+    const { error } = await client().from('pegawai').delete().eq('id', id);
     throwIfError(error);
   },
 
   // ---------------- KEHADIRAN ----------------
   async listKehadiran({ dari, sampai, jenisApel, pegawaiId } = {}) {
-    let q = supabase.from('kehadiran').select('*');
+    let q = client().from('kehadiran').select('*');
     if (dari) q = q.gte('tanggal', dari);
     if (sampai) q = q.lte('tanggal', sampai);
     if (jenisApel) q = q.eq('jenis_apel', jenisApel);
@@ -101,7 +122,7 @@ const DB = {
     // entries: [{pegawaiId, status, keterangan}]
     // Hapus dulu data lama utk tanggal+jenisApel ini, lalu insert baru
     // (menyamai perilaku "replace" pada versi localStorage)
-    const del = await supabase.from('kehadiran').delete().eq('tanggal', tanggal).eq('jenis_apel', jenisApel);
+    const del = await client().from('kehadiran').delete().eq('tanggal', tanggal).eq('jenis_apel', jenisApel);
     throwIfError(del.error);
     const rows = entries.map((e) => ({
       tanggal,
@@ -110,7 +131,7 @@ const DB = {
       status: e.status,
       keterangan: e.keterangan || '',
     }));
-    const { error } = await supabase.from('kehadiran').insert(rows);
+    const { error } = await client().from('kehadiran').insert(rows);
     throwIfError(error);
   },
 
@@ -122,8 +143,8 @@ const DB = {
 
   async importAll(pegawaiArr, kehadiranArr) {
     // Hapus semua data lama, lalu masukkan data baru.
-    throwIfError((await supabase.from('kehadiran').delete().neq('id', '00000000-0000-0000-0000-000000000000')).error);
-    throwIfError((await supabase.from('pegawai').delete().neq('id', '00000000-0000-0000-0000-000000000000')).error);
+    throwIfError((await client().from('kehadiran').delete().neq('id', '00000000-0000-0000-0000-000000000000')).error);
+    throwIfError((await client().from('pegawai').delete().neq('id', '00000000-0000-0000-0000-000000000000')).error);
 
     const pegawaiRows = pegawaiArr.map((p) => ({
       id: p.id,
@@ -134,7 +155,7 @@ const DB = {
       jenis_jabatan: p.jenisJabatan,
       aktif: p.aktif,
     }));
-    if (pegawaiRows.length) throwIfError((await supabase.from('pegawai').insert(pegawaiRows)).error);
+    if (pegawaiRows.length) throwIfError((await client().from('pegawai').insert(pegawaiRows)).error);
 
     const kehadiranRows = kehadiranArr.map((k) => ({
       tanggal: k.tanggal,
@@ -143,12 +164,12 @@ const DB = {
       status: k.status,
       keterangan: k.keterangan || '',
     }));
-    if (kehadiranRows.length) throwIfError((await supabase.from('kehadiran').insert(kehadiranRows)).error);
+    if (kehadiranRows.length) throwIfError((await client().from('kehadiran').insert(kehadiranRows)).error);
   },
 
   // ---------------- REALTIME ----------------
   subscribeChanges(onChange) {
-    return supabase
+    return client()
       .channel('siap-apel-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pegawai' }, onChange)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'kehadiran' }, onChange)

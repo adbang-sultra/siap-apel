@@ -54,6 +54,16 @@ async function checkConnection() {
     pengInfo.innerHTML = '⚠️ Aplikasi belum terhubung ke Supabase. Lengkapi <code>js/config.js</code> lalu muat ulang halaman.';
     return false;
   }
+  if (DB.configError && DB.configError()) {
+    banner.style.display = 'block';
+    banner.innerHTML = '⚠️ <b>Gagal memuat SDK Supabase.</b> ' + esc(DB.configError()) + ' — periksa apakah script CDN di <code>index.html</code> berhasil dimuat (buka Console browser untuk detail).';
+    badge.classList.add('off');
+    badgeText.textContent = 'Terputus';
+    dot.classList.add('off');
+    connText.textContent = 'SDK gagal dimuat';
+    pengInfo.innerHTML = '❌ ' + esc(DB.configError());
+    return false;
+  }
   try {
     await DB.listBiro();
     banner.style.display = 'none';
@@ -596,7 +606,12 @@ function setupRealtime() {
 
 // ---------------- INIT ----------------
 async function bootstrap() {
-  const ok = await checkConnection();
+  let ok = false;
+  try {
+    ok = await checkConnection();
+  } catch (err) {
+    console.error(err);
+  }
   if (!ok) {
     document.getElementById('tabelPegawai').innerHTML = '<tr><td colspan="7" class="muted">Menunggu konfigurasi Supabase...</td></tr>';
     document.getElementById('tabelInput').innerHTML = '<tr><td colspan="5" class="muted">Menunggu konfigurasi Supabase...</td></tr>';
@@ -613,6 +628,11 @@ async function bootstrap() {
     setupRealtime();
   } catch (err) {
     toast('Gagal memuat data awal: ' + err.message, 'error');
+    document.getElementById('tabelPegawai').innerHTML = '<tr><td colspan="7" class="muted">Gagal memuat data: ' + esc(err.message) + '</td></tr>';
+    document.getElementById('tabelInput').innerHTML = '<tr><td colspan="5" class="muted">Gagal memuat data: ' + esc(err.message) + '</td></tr>';
   }
 }
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('Bootstrap gagal total:', err);
+  toast('Aplikasi gagal memuat: ' + err.message, 'error');
+});
