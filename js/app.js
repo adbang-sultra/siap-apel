@@ -518,7 +518,6 @@ function signBlock() {
       <p>(..............................................)</p>
     </div>
     <div class="print-footnote">
-      <span>Dicetak melalui SIAP APEL — Sistem Informasi Apel Pejabat</span>
       <span>Tanggal cetak: ${new Date().toLocaleDateString('id-ID')} — ${new Date().toLocaleTimeString('id-ID')}</span>
     </div>`;
 }
